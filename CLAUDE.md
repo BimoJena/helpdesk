@@ -74,10 +74,24 @@ The client proxies `/api/*` requests to the server via Vite config.
 - `Account` — for OAuth providers (currently unused)
 - `Verification` — for email verification flows (currently unused)
 
+### Client-side Role Enforcement
+- `authClient` uses `inferAdditionalFields<typeof auth>()` plugin to type the `role` field on `session.user`
+- Admin-only routes in `App.tsx` check `session.user.role === 'admin'` and redirect non-admins to `/`
+
 ## Completed Pages
 
-
 - `LoginPage.tsx` — email/password login using Card, Label, Input, Button; validation via zod + react-hook-form; auth via better-auth `authClient.signIn.email()`
+- `HomePage.tsx` — dashboard, accessible to all authenticated users
+- `UsersPage.tsx` — admin-only page at `/users`
+
+## Shared Components
+
+- `AppLayout.tsx` — shared nav + layout wrapper used by all authenticated pages; renders a "Users" nav link only for admins
+
+## Seed / Test Users
+
+- Admin: set via `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars, seeded with `bun run db:seed`
+- Agent: `agent@example.com` / `password123`
 
 ## Key Conventions
 

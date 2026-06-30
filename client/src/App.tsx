@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { authClient } from "./lib/authClient";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
+import UsersPage from "./pages/UsersPage";
 
 function App() {
   const { data: session, isPending } = authClient.useSession();
@@ -27,6 +28,18 @@ function App() {
             <HomePage userName={session.user.name} />
           ) : (
             <Navigate to="/login" replace />
+          )
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          !session ? (
+            <Navigate to="/login" replace />
+          ) : session.user.role === "admin" ? (
+            <UsersPage />
+          ) : (
+            <Navigate to="/" replace />
           )
         }
       />
