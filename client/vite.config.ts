@@ -8,6 +8,12 @@ const apiTarget = isTest ? "http://localhost:3001" : "http://localhost:3000";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Inject the API URL so authClient uses the correct backend in test mode
+    ...(isTest && {
+      "import.meta.env.VITE_API_URL": JSON.stringify("http://localhost:3001"),
+    }),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
