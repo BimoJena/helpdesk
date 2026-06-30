@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import axios from "axios";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "../components/AppLayout";
 import { Button } from "../components/ui/button";
 import { authClient } from "../lib/authClient";
@@ -11,53 +12,36 @@ interface User {
   createdAt: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
+  withCredentials: true,
+});
 
 export default function UsersPage() {
   const { data: session } = authClient.useSession();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({
+    queryKey: ["users"],
+    queryFn: () => api.get<User[]>("/api/users").then((res) => res.data),
+  });
 
-  async function fetchUsers() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_URL}/api/users`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load users");
-      const data = await res.json();
-      setUsers(data);
-    } catch {
-      setError("Failed to load users. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const deleteMutation = useMutation({
+    mutationFn: (userId: string) => api.delete(`/api/users/${userId}`),
+    onSuccess: (_, userId) => {
+      queryClient.setQueryData<User[]>(["users"], (prev) =>
+        prev?.filter((u) => u.id !== userId)
+      );
+    },
+    onError: (err) => {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      alert(message || "Failed to delete user");
+    },
+  });
 
-  async function handleDelete(userId: string, userName: string) {
+  function handleDelete(userId: string, userName: string) {
     if (!confirm(`Are you sure you want to delete "${userName}"? This action cannot be undone.`)) return;
-
-    setDeletingId(userId);
-    try {
-      const res = await fetch(`${API_URL}/api/users/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.message || "Failed to delete user");
-      }
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete user");
-    } finally {
-      setDeletingId(null);
-    }
+    deleteMutation.mutate(userId);
   }
 
   return (
@@ -67,22 +51,22 @@ export default function UsersPage() {
         <span className="text-sm text-gray-500">{users.length} user{users.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {loading && (
+      {isLoading && (
         <div className="flex items-center justify-center py-20">
           <span className="text-sm text-gray-400">Loading users…</span>
         </div>
       )}
 
-      {error && !loading && (
+      {isError && !isLoading && (
         <div className="rounded-md bg-red-50 border border-red-200 p-4 flex items-center justify-between">
-          <p className="text-sm text-red-700">{error}</p>
-          <Button variant="outline" size="sm" onClick={fetchUsers}>
+          <p className="text-sm text-red-700">Failed to load users. Please try again.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
             Retry
           </Button>
         </div>
       )}
 
-      {!loading && !error && (
+      {!isLoading && !isError && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -137,10 +121,12 @@ export default function UsersPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          disabled={isSelf || deletingId === user.id}
+                          disabled={isSelf || deleteMutation.isPending}
                           onClick={() => handleDelete(user.id, user.name)}
                         >
-                          {deletingId === user.id ? "Deleting…" : "Delete"}
+                          {deleteMutation.variables === user.id && deleteMutation.isPending
+                            ? "Deleting…"
+                            : "Delete"}
                         </Button>
                       </td>
                     </tr>
