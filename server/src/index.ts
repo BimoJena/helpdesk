@@ -10,6 +10,11 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 
+// block public self-registration
+app.post("/api/auth/sign-up/email", (_req, res) => {
+  res.status(403).json({ message: "Sign up is disabled" });
+});
+
 // better-auth handles its own body parsing — mount before express.json()
 app.all("/api/auth/*", toNodeHandler(auth));
 
