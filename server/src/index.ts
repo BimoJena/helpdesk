@@ -1,19 +1,47 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import prisma from "./lib/prisma.js";
+import { requireAuth } from "./middleware/auth.middleware.js";
 import sampleRoutes from "./routes/sample.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
 
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+// Security headers
+app.use(helmet());
+
+app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
+
+// Rate limiter for all auth routes — 20 requests per 15 minutes per IP
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
+
+// Stricter limiter for sign-in — 10 attempts per 15 minutes per IP
+const signInLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts, please try again later." },
+});
 
 // block public self-registration
 app.post("/api/auth/sign-up/email", (_req, res) => {
   res.status(403).json({ message: "Sign up is disabled" });
 });
+
+app.post("/api/auth/sign-in/email", signInLimiter);
+app.use("/api/auth", authLimiter);
 
 // better-auth handles its own body parsing — mount before express.json()
 app.all("/api/auth/*", toNodeHandler(auth));
@@ -22,12 +50,13 @@ app.use(express.json());
 
 app.use("/api", sampleRoutes);
 
-app.get("/api/health", async (_req, res) => {
+// Protected health endpoint — no infrastructure details exposed to unauthenticated callers
+app.get("/api/health", requireAuth, async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "connected" });
+    res.json({ status: "ok" });
   } catch {
-    res.status(500).json({ status: "ok", db: "disconnected" });
+    res.status(500).json({ status: "error" });
   }
 });
 
