@@ -6,7 +6,9 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.js";
 import prisma from "./lib/prisma.js";
 import { requireAuth } from "./middleware/auth.middleware.js";
+import { errorHandler } from "./middleware/error.middleware.js";
 import sampleRoutes from "./routes/sample.routes.js";
+import usersRoutes from "./routes/users.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,16 +55,14 @@ app.all("/api/auth/*", toNodeHandler(auth));
 app.use(express.json());
 
 app.use("/api", sampleRoutes);
+app.use("/api/users", usersRoutes);
 
 // Protected health endpoint — no infrastructure details exposed to unauthenticated callers
-app.get("/api/health", requireAuth, async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok" });
-  } catch {
-    res.status(500).json({ status: "error" });
-  }
+app.get("/api/health", requireAuth, async (_req, res, next) => {
+  prisma.$queryRaw`SELECT 1`.then(() => res.json({ status: "ok" })).catch(next);
 });
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
