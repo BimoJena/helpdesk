@@ -17,31 +17,35 @@ app.use(helmet());
 
 app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
 
-// Rate limiter for all auth routes — 20 requests per 15 minutes per IP
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many requests, please try again later." },
-});
-
-// Stricter limiter for sign-in — 10 attempts per 15 minutes per IP
-const signInLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Too many login attempts, please try again later." },
-});
+const isProduction = process.env.NODE_ENV === "production";
 
 // block public self-registration
 app.post("/api/auth/sign-up/email", (_req, res) => {
   res.status(403).json({ message: "Sign up is disabled" });
 });
 
-app.post("/api/auth/sign-in/email", signInLimiter);
-app.use("/api/auth", authLimiter);
+if (isProduction) {
+  // Rate limiter for all auth routes — 20 requests per 15 minutes per IP
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later." },
+  });
+
+  // Stricter limiter for sign-in — 10 attempts per 15 minutes per IP
+  const signInLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many login attempts, please try again later." },
+  });
+
+  app.post("/api/auth/sign-in/email", signInLimiter);
+  app.use("/api/auth", authLimiter);
+}
 
 // better-auth handles its own body parsing — mount before express.json()
 app.all("/api/auth/*", toNodeHandler(auth));

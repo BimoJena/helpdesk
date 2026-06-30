@@ -93,6 +93,28 @@ The client proxies `/api/*` requests to the server via Vite config.
 - Admin: set via `ADMIN_EMAIL` / `ADMIN_PASSWORD` env vars, seeded with `bun run db:seed`
 - Agent: `agent@example.com` / `password123`
 
+## Testing
+
+### Playwright (E2E)
+- Installed in `client/` as a dev dependency
+- Config: `client/playwright.config.ts`
+- Tests live in `client/e2e/`
+- Run with: `cd client && bun run test:e2e` (headless), `bun run test:e2e:ui` (UI mode), `bun run test:e2e:debug` (debug)
+- Only Chromium is configured; add more browsers in `playwright.config.ts` if needed
+
+### Test Database
+- Separate PostgreSQL database: `helpdesk_test`
+- Server runs on port `3001` with env vars from `server/.env.test`
+- Vite runs on port `5174` with `VITE_TEST=true` (proxies `/api` to port `3001`)
+- Both servers are auto-started by Playwright via `webServer` in the config
+- `global-setup.ts` — creates `helpdesk_test` if it doesn't exist, then runs `prisma migrate deploy` against it
+- `global-teardown.ts` — truncates all tables (RESTART IDENTITY CASCADE) after tests; database is kept persistent so it's always visible in DataGrip
+- `helpdesk_test` must be created on first run via `bun run test:e2e`
+
+### Rate Limiting
+- Auth rate limiters (`authLimiter`, `signInLimiter`) only apply when `NODE_ENV=production`
+- Bypassed in dev and test environments to avoid interference during development and E2E tests
+
 ## Key Conventions
 
 - Use Bun as the runtime and package manager (not npm/yarn)
