@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "../components/ui/skeleton";
 import AppLayout from "../components/AppLayout";
 import { Button } from "../components/ui/button";
 import { authClient } from "../lib/authClient";
@@ -52,8 +53,29 @@ export default function UsersPage() {
       </div>
 
       {isLoading && (
-        <div className="flex items-center justify-center py-20">
-          <span className="text-sm text-gray-400">Loading users…</span>
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Name</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Email</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Role</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Joined</th>
+                <th className="px-6 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b border-gray-100 last:border-0">
+                  <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
+                  <td className="px-6 py-4"><Skeleton className="h-4 w-48" /></td>
+                  <td className="px-6 py-4"><Skeleton className="h-5 w-14 rounded-full" /></td>
+                  <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
+                  <td className="px-6 py-4 flex justify-end"><Skeleton className="h-8 w-16 rounded-md" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

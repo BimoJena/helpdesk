@@ -8,11 +8,7 @@ function App() {
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <span className="text-sm text-gray-400">Loading…</span>
-      </div>
-    );
+    return null;
   }
 
   return (
