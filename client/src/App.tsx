@@ -1,34 +1,36 @@
-import { useEffect, useState } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { authClient } from "./lib/authClient";
+import LoginPage from "./pages/LoginPage";
+import HomePage from "./pages/HomePage";
 
 function App() {
-  const [status, setStatus] = useState<string | null>(null);
+  const { data: session, isPending } = authClient.useSession();
 
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus("unreachable"));
-  }, []);
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <span className="text-sm text-gray-400">Loading…</span>
+      </div>
+    );
+  }
 
   return (
     <Routes>
       <Route
+        path="/login"
+        element={session ? <Navigate to="/" replace /> : <LoginPage />}
+      />
+      <Route
         path="/"
         element={
-          <div className="p-8">
-            <h1 className="text-2xl font-bold">MyHelpdesk</h1>
-            {status && (
-              <p className="mt-2 text-sm">
-                Server status:{" "}
-                <span className={status === "ok" ? "text-green-600" : "text-red-600"}>
-                  {status}
-                </span>
-              </p>
-            )}
-          </div>
+          session ? (
+            <HomePage userName={session.user.name} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
         }
       />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

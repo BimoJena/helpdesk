@@ -22,7 +22,7 @@ app.use(express.json());
 
 app.use("/api", sampleRoutes);
 
-app.get("/health", async (_req, res) => {
+app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ok", db: "connected" });
