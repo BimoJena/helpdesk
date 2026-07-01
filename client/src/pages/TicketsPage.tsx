@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   useReactTable,
@@ -8,10 +8,11 @@ import {
   createColumnHelper,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import { Skeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { $Enums } from "../../../server/generated/prisma";
 
 interface Ticket {
@@ -23,6 +24,13 @@ interface Ticket {
   category: $Enums.TicketCategory | null;
   createdAt: string;
 }
+
+interface TicketsResponse {
+  data: Ticket[];
+  total: number;
+}
+
+const PAGE_SIZE = 10;
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000",
@@ -96,22 +104,54 @@ const columns = [
 
 export default function TicketsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [category, setCategory] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(0);
+
+  const handleSearch = useCallback((value: string) => {
+    setSearch(value);
+    setPage(0);
+    clearTimeout((handleSearch as any)._t);
+    (handleSearch as any)._t = setTimeout(() => setDebouncedSearch(value), 300);
+  }, []);
+
+  const handleStatus = (value: string) => { setStatus(value); setPage(0); };
+  const handleCategory = (value: string) => { setCategory(value); setPage(0); };
+  const handleSorting: typeof setSorting = (updater) => { setSorting(updater); setPage(0); };
 
   const sortBy = sorting[0]?.id ?? "createdAt";
   const sortDir = sorting[0]?.desc === false ? "asc" : "desc";
 
-  const { data: tickets = [], isLoading, isFetching, isError, refetch } = useQuery<Ticket[]>({
-    queryKey: ["tickets", sortBy, sortDir],
+  const { data: response, isLoading, isFetching, isError, refetch } = useQuery<TicketsResponse>({
+    queryKey: ["tickets", sortBy, sortDir, debouncedSearch, status, category, page],
     queryFn: () =>
-      api.get<Ticket[]>("/api/tickets", { params: { sortBy, sortDir } }).then((r) => r.data),
+      api.get<TicketsResponse>("/api/tickets", {
+        params: {
+          sortBy,
+          sortDir,
+          page,
+          pageSize: PAGE_SIZE,
+          ...(debouncedSearch && { search: debouncedSearch }),
+          ...(status && { status }),
+          ...(category && { category }),
+        },
+      }).then((r) => r.data),
     placeholderData: keepPreviousData,
   });
+
+  const tickets = response?.data ?? [];
+  const total = response?.total ?? 0;
+  const pageCount = Math.ceil(total / PAGE_SIZE);
+
+
 
   const table = useReactTable({
     data: tickets,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: handleSorting,
     manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -121,7 +161,7 @@ export default function TicketsPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
         <span className="text-sm text-gray-500">
-          {!isLoading && !isError && `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""}`}
+          {!isLoading && !isError && `${total} ticket${total !== 1 ? "s" : ""}`}
           {isFetching && !isLoading && <span className="ml-2 text-xs text-gray-400">Updating...</span>}
         </span>
       </div>
@@ -132,6 +172,39 @@ export default function TicketsPage() {
           <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
         </div>
       )}
+
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="relative flex-1 min-w-48">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Search subject or sender..."
+            value={search}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <select
+          value={status}
+          onChange={(e) => handleStatus(e.target.value)}
+          className="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-300"
+        >
+          <option value="">All statuses</option>
+          <option value="open">Open</option>
+          <option value="resolved">Resolved</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select
+          value={category}
+          onChange={(e) => handleCategory(e.target.value)}
+          className="border border-gray-200 rounded-md px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-300"
+        >
+          <option value="">All categories</option>
+          <option value="general_question">General</option>
+          <option value="technical_question">Technical</option>
+          <option value="refund_request">Refund</option>
+        </select>
+
+      </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
@@ -195,6 +268,21 @@ export default function TicketsPage() {
           </tbody>
         </table>
       </div>
+
+      {!isLoading && !isError && pageCount > 1 && (
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+          <span>Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} tickets</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={page === 0}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={page >= pageCount - 1}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
