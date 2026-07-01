@@ -1,5 +1,14 @@
 import axios from "axios";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import {
+  useReactTable,
+  getCoreRowModel,
+  flexRender,
+  createColumnHelper,
+  type SortingState,
+} from "@tanstack/react-table";
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import { Skeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
@@ -32,10 +41,79 @@ const CATEGORY_LABELS: Record<$Enums.TicketCategory, string> = {
   ["refund_request" satisfies $Enums.TicketCategory]: "Refund",
 };
 
+const columnHelper = createColumnHelper<Ticket>();
+
+const columns = [
+  columnHelper.accessor("subject", {
+    header: "Subject",
+    cell: (info) => (
+      <span className="font-medium text-gray-900">{info.getValue()}</span>
+    ),
+  }),
+  columnHelper.accessor("senderEmail", {
+    header: "From",
+    cell: (info) => {
+      const { senderName, senderEmail } = info.row.original;
+      return (
+        <div className="text-gray-600">
+          <div>{senderName ?? senderEmail}</div>
+          {senderName && <div className="text-xs text-gray-400">{senderEmail}</div>}
+        </div>
+      );
+    },
+  }),
+  columnHelper.accessor("status", {
+    header: "Status",
+    cell: (info) => (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[info.getValue()]}`}>
+        {info.getValue()}
+      </span>
+    ),
+  }),
+  columnHelper.accessor("category", {
+    header: "Category",
+    cell: (info) => {
+      const cat = info.getValue();
+      return cat ? (
+        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">
+          {CATEGORY_LABELS[cat]}
+        </span>
+      ) : (
+        <span className="text-gray-400 text-xs">—</span>
+      );
+    },
+  }),
+  columnHelper.accessor("createdAt", {
+    header: "Received",
+    cell: (info) =>
+      new Date(info.getValue()).toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+  }),
+];
+
 export default function TicketsPage() {
-  const { data: tickets = [], isLoading, isError, refetch } = useQuery<Ticket[]>({
-    queryKey: ["tickets"],
-    queryFn: () => api.get<Ticket[]>("/api/tickets").then((r) => r.data),
+  const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
+
+  const sortBy = sorting[0]?.id ?? "createdAt";
+  const sortDir = sorting[0]?.desc === false ? "asc" : "desc";
+
+  const { data: tickets = [], isLoading, isFetching, isError, refetch } = useQuery<Ticket[]>({
+    queryKey: ["tickets", sortBy, sortDir],
+    queryFn: () =>
+      api.get<Ticket[]>("/api/tickets", { params: { sortBy, sortDir } }).then((r) => r.data),
+    placeholderData: keepPreviousData,
+  });
+
+  const table = useReactTable({
+    data: tickets,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    manualSorting: true,
+    getCoreRowModel: getCoreRowModel(),
   });
 
   return (
@@ -44,6 +122,7 @@ export default function TicketsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Tickets</h1>
         <span className="text-sm text-gray-500">
           {!isLoading && !isError && `${tickets.length} ticket${tickets.length !== 1 ? "s" : ""}`}
+          {isFetching && !isLoading && <span className="ml-2 text-xs text-gray-400">Updating...</span>}
         </span>
       </div>
 
@@ -58,11 +137,28 @@ export default function TicketsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left px-6 py-3 font-medium text-gray-600">Subject</th>
-              <th className="text-left px-6 py-3 font-medium text-gray-600">From</th>
-              <th className="text-left px-6 py-3 font-medium text-gray-600">Status</th>
-              <th className="text-left px-6 py-3 font-medium text-gray-600">Category</th>
-              <th className="text-left px-6 py-3 font-medium text-gray-600">Received</th>
+              {table.getFlatHeaders().map((header) => {
+                const sorted = header.column.getIsSorted();
+                return (
+                  <th
+                    key={header.id}
+                    className="text-left px-6 py-3 font-medium text-gray-600 select-none"
+                    onClick={header.column.getToggleSortingHandler()}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {sorted === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-gray-900" />
+                      ) : sorted === "desc" ? (
+                        <ArrowDown className="w-3.5 h-3.5 text-gray-900" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-gray-400" />
+                      )}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -87,38 +183,13 @@ export default function TicketsPage() {
 
             {!isLoading &&
               !isError &&
-              tickets.map((ticket) => (
-                <tr key={ticket.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate">
-                    {ticket.subject}
-                  </td>
-                  <td className="px-6 py-4 text-gray-600">
-                    <div>{ticket.senderName ?? ticket.senderEmail}</div>
-                    {ticket.senderName && (
-                      <div className="text-xs text-gray-400">{ticket.senderEmail}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[ticket.status]}`}>
-                      {ticket.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {ticket.category ? (
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-orange-100 text-orange-700">
-                        {CATEGORY_LABELS[ticket.category]}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {new Date(ticket.createdAt).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </td>
+              table.getRowModel().rows.map((row) => (
+                <tr key={row.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="px-6 py-4">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
                 </tr>
               ))}
           </tbody>
