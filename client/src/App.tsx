@@ -3,6 +3,7 @@ import { authClient } from "./lib/authClient";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import UsersPage from "./pages/UsersPage";
+import TicketsPage from "./pages/TicketsPage";
 
 function App() {
   const { data: session, isPending } = authClient.useSession();
@@ -26,6 +27,10 @@ function App() {
             <Navigate to="/login" replace />
           )
         }
+      />
+      <Route
+        path="/tickets"
+        element={session ? <TicketsPage /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/users"

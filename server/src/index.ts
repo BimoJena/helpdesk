@@ -9,6 +9,8 @@ import { requireAuth } from "./middleware/auth.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import sampleRoutes from "./routes/sample.routes.js";
 import usersRoutes from "./routes/users.routes.js";
+import inboundEmailRoutes from "./routes/inbound-email.routes.js";
+import ticketsRoutes from "./routes/tickets.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,10 +54,13 @@ if (isProduction) {
 // better-auth handles its own body parsing — mount before express.json()
 app.all("/api/auth/*", toNodeHandler(auth));
 
+app.use("/api/webhooks/mailgun/inbound", inboundEmailRoutes);
+
 app.use(express.json());
 
 app.use("/api", sampleRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/tickets", ticketsRoutes);
 
 // Protected health endpoint — no infrastructure details exposed to unauthenticated callers
 app.get("/api/health", requireAuth, async (_req, res, next) => {

@@ -95,12 +95,28 @@ The client proxies `/api/*` requests to the server via Vite config.
 
 ## Testing
 
-### Playwright (E2E)
+### Strategy
+- **Prefer component (unit) tests** for all UI logic — rendering, state, user interactions, API mocking, error/loading states
+- **Use E2E tests only when necessary** — full auth flows, multi-page navigation, or behaviour that cannot be meaningfully tested without a real browser + real server (e.g. cookie-based session persistence, redirect chains)
+- When in doubt, write a component test first; only escalate to E2E if the component test cannot cover the scenario
+
+### Component Tests (Vitest)
+- Runner: Vitest with jsdom environment
+- Tests live in `client/src/test/`
+- Run with: `cd client && bun run test:unit` (headless), `bun run test:unit:ui` (UI mode)
+- Setup file: `client/src/test/setup.ts` (imports `@testing-library/jest-dom`)
+- Use `@testing-library/react` + `@testing-library/user-event` for rendering and interactions
+- Wrap components in `<QueryClientProvider>` (with `retry: false`) and `<MemoryRouter>` as needed
+- Mock `axios` with `vi.hoisted` + `vi.mock` to intercept API calls; mock `authClient` for session state
+- Scope queries to `<tbody>` via `screen.getAllByRole('rowgroup')[1]` to avoid collisions with nav/header
+
+### E2E Tests (Playwright)
 - Installed in `client/` as a dev dependency
 - Config: `client/playwright.config.ts`
 - Tests live in `client/e2e/`
 - Run with: `cd client && bun run test:e2e` (headless), `bun run test:e2e:ui` (UI mode), `bun run test:e2e:debug` (debug)
 - Only Chromium is configured; add more browsers in `playwright.config.ts` if needed
+- Use Playwright's `request` fixture (not the browser) for pure API/webhook tests
 
 ### Test Database
 - Separate PostgreSQL database: `helpdesk_test`
