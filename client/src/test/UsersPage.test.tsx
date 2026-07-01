@@ -10,7 +10,7 @@ import UsersPage from "../pages/UsersPage";
 
 // vi.hoisted ensures mockApi is available when vi.mock factories run
 const { mockApi } = vi.hoisted(() => ({
-  mockApi: { get: vi.fn(), delete: vi.fn() },
+  mockApi: { get: vi.fn(), delete: vi.fn(), post: vi.fn() },
 }));
 
 vi.mock("../lib/authClient", () => ({
@@ -140,21 +140,86 @@ describe("UsersPage", () => {
     });
   });
 
+  describe("create user modal", () => {
+    beforeEach(() => {
+      mockApi.get.mockResolvedValue({ data: MOCK_USERS });
+    });
+
+    it("shows the modal when New User button is clicked", async () => {
+      renderPage();
+
+      await waitFor(() => screen.getByText("Bob Agent"));
+      await userEvent.click(screen.getByRole("button", { name: "New User" }));
+
+      expect(screen.getByRole("heading", { name: "New User" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Name")).toBeInTheDocument();
+      expect(screen.getByLabelText("Email")).toBeInTheDocument();
+      expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    });
+
+    it("hides the modal when Cancel is clicked", async () => {
+      renderPage();
+
+      await waitFor(() => screen.getByText("Bob Agent"));
+      await userEvent.click(screen.getByRole("button", { name: "New User" }));
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("heading", { name: "New User" })).not.toBeInTheDocument();
+    });
+
+    it("hides the modal when clicking outside", async () => {
+      renderPage();
+
+      await waitFor(() => screen.getByText("Bob Agent"));
+      await userEvent.click(screen.getByRole("button", { name: "New User" }));
+
+      const backdrop = document.querySelector(".fixed.inset-0") as HTMLElement;
+      await userEvent.click(backdrop);
+
+      expect(screen.queryByRole("heading", { name: "New User" })).not.toBeInTheDocument();
+    });
+
+    it("hides the modal when Escape is pressed", async () => {
+      renderPage();
+
+      await waitFor(() => screen.getByText("Bob Agent"));
+      await userEvent.click(screen.getByRole("button", { name: "New User" }));
+      await userEvent.keyboard("{Escape}");
+
+      expect(screen.queryByRole("heading", { name: "New User" })).not.toBeInTheDocument();
+    });
+  });
+
   describe("delete", () => {
     beforeEach(() => {
       mockApi.get.mockResolvedValue({ data: MOCK_USERS });
       mockApi.delete.mockResolvedValue({});
-      vi.spyOn(window, "confirm").mockReturnValue(true);
     });
 
-    it("removes the user row after successful deletion", async () => {
+    it("shows the delete confirmation modal when Delete is clicked", async () => {
       renderPage();
 
       await waitFor(() => screen.getByText("Bob Agent"));
 
       const tbody = getTbody();
       const deleteButtons = within(tbody).getAllByRole("button", { name: "Delete", hidden: true });
-      await userEvent.click(deleteButtons[1]); // Bob's button
+      await userEvent.click(deleteButtons[1]);
+
+      expect(screen.getByRole("heading", { name: "Delete User" })).toBeInTheDocument();
+      expect(screen.getByText("Bob Agent", { selector: "span" })).toBeInTheDocument();
+    });
+
+    it("removes the user row after confirming deletion", async () => {
+      renderPage();
+
+      await waitFor(() => screen.getByText("Bob Agent"));
+
+      const tbody = getTbody();
+      const deleteButtons = within(tbody).getAllByRole("button", { name: "Delete", hidden: true });
+      await userEvent.click(deleteButtons[1]);
+
+      const modal = screen.getByRole("heading", { name: "Delete User" }).closest("div")!.parentElement!;
+      await userEvent.click(within(modal).getByRole("button", { name: "Delete" }));
 
       await waitFor(() => expect(screen.queryByText("Bob Agent")).not.toBeInTheDocument());
     });
@@ -168,14 +233,15 @@ describe("UsersPage", () => {
       const deleteButtons = within(tbody).getAllByRole("button", { name: "Delete", hidden: true });
       await userEvent.click(deleteButtons[1]);
 
+      const modal = screen.getByRole("heading", { name: "Delete User" }).closest("div")!.parentElement!;
+      await userEvent.click(within(modal).getByRole("button", { name: "Delete" }));
+
       await waitFor(() =>
         expect(mockApi.delete).toHaveBeenCalledWith("/api/users/user-2")
       );
     });
 
-    it("does not call delete when confirm is cancelled", async () => {
-      vi.spyOn(window, "confirm").mockReturnValue(false);
-
+    it("does not call delete when Cancel is clicked", async () => {
       renderPage();
 
       await waitFor(() => screen.getByText("Bob Agent"));
@@ -183,6 +249,7 @@ describe("UsersPage", () => {
       const tbody = getTbody();
       const deleteButtons = within(tbody).getAllByRole("button", { name: "Delete", hidden: true });
       await userEvent.click(deleteButtons[1]);
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
       expect(mockApi.delete).not.toHaveBeenCalled();
       expect(screen.getByText("Bob Agent")).toBeInTheDocument();

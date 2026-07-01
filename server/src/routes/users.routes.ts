@@ -51,6 +51,53 @@ router.post("/", requireAuth, requireAdmin, async (req, res, next) => {
   }
 });
 
+// PATCH /api/users/:id — update a user
+router.patch("/:id", requireAuth, requireAdmin, async (req, res, next) => {
+  const { id } = req.params;
+  const { name, email, password } = req.body;
+
+  const trimmedName = name?.trim();
+  if (trimmedName !== undefined && trimmedName.length < 3) {
+    res.status(400).json({ message: "Name must be at least 3 characters" });
+    return;
+  }
+
+  if (password !== undefined && password !== "") {
+    if (password.includes(" ") || password.trim().length < 8) {
+      res.status(400).json({ message: "Password must be at least 8 characters with no spaces" });
+      return;
+    }
+  }
+
+  try {
+    const updates: Record<string, any> = {};
+    if (trimmedName) updates.name = trimmedName;
+    if (email) updates.email = email;
+
+    if (password && password.trim().length >= 8) {
+      const { hashPassword } = await import("@better-auth/utils/password");
+      const hashed = await hashPassword(password);
+      await prisma.account.updateMany({
+        where: { userId: id, providerId: "credential" },
+        data: { password: hashed },
+      });
+    }
+
+    const user = await prisma.user.update({
+      where: { id },
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      data: updates,
+    });
+    res.json(user);
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      res.status(409).json({ message: "A user with this email already exists" });
+      return;
+    }
+    next(err);
+  }
+});
+
 // DELETE /api/users/:id — delete a user (admin cannot delete themselves)
 router.delete("/:id", requireAuth, requireAdmin, async (req, res, next) => {
   const { id } = req.params;

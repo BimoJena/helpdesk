@@ -6,6 +6,7 @@ import AppLayout from "../components/AppLayout";
 import { Button } from "../components/ui/button";
 import { authClient } from "../lib/authClient";
 import CreateUserModal from "../components/CreateUserModal";
+import EditUserModal from "../components/EditUserModal";
 
 interface User {
   id: string;
@@ -24,6 +25,7 @@ export default function UsersPage() {
   const { data: session } = authClient.useSession();
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [popup, setPopup] = useState<string | null>(null);
 
@@ -41,6 +43,21 @@ export default function UsersPage() {
     onError: (err) => {
       const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
       setPopup(message || "Failed to create user");
+    },
+  });
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name: string; email: string; password: string } }) =>
+      api.patch<User>(`/api/users/${id}`, data).then((r) => r.data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<User[]>(["users"], (prev) =>
+        prev?.map((u) => (u.id === updated.id ? updated : u))
+      );
+      setEditTarget(null);
+    },
+    onError: (err) => {
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined;
+      setPopup(message || "Failed to update user");
     },
   });
 
@@ -96,6 +113,15 @@ export default function UsersPage() {
         </div>
       )}
 
+      {editTarget && (
+        <EditUserModal
+          user={editTarget}
+          isPending={editMutation.isPending}
+          onSubmit={(data) => editMutation.mutate({ id: editTarget.id, data })}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+
       {showModal && (
         <CreateUserModal
           isPending={createMutation.isPending}
@@ -113,7 +139,7 @@ export default function UsersPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Email</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Role</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Joined</th>
-                <th className="px-6 py-3" />
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -123,7 +149,7 @@ export default function UsersPage() {
                   <td className="px-6 py-4"><Skeleton className="h-4 w-48" /></td>
                   <td className="px-6 py-4"><Skeleton className="h-5 w-14 rounded-full" /></td>
                   <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-                  <td className="px-6 py-4 flex justify-end"><Skeleton className="h-8 w-16 rounded-md" /></td>
+                  <td className="px-6 py-4 flex gap-2"><Skeleton className="h-8 w-8 rounded-md" /><Skeleton className="h-8 w-8 rounded-md" /></td>
                 </tr>
               ))}
             </tbody>
@@ -149,7 +175,7 @@ export default function UsersPage() {
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Email</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Role</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-600">Joined</th>
-                <th className="px-6 py-3" />
+                <th className="text-left px-6 py-3 font-medium text-gray-600">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -194,17 +220,30 @@ export default function UsersPage() {
                           day: "numeric",
                         })}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={isSelf || deleteMutation.isPending}
-                          onClick={() => handleDelete(user.id, user.name)}
-                        >
-                          {deleteMutation.variables === user.id && deleteMutation.isPending
-                            ? "Deleting…"
-                            : "Delete"}
-                        </Button>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditTarget(user)}
+                            aria-label="Edit"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6.586-6.586a2 2 0 112.828 2.828L11.828 15.828a2 2 0 01-1.414.586H9v-2a2 2 0 01.586-1.414z" /></svg>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={isSelf || deleteMutation.isPending}
+                            onClick={() => handleDelete(user.id, user.name)}
+                            aria-label="Delete"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            {deleteMutation.variables === user.id && deleteMutation.isPending
+                              ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                              : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            }
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
