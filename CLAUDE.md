@@ -123,3 +123,4 @@ The client proxies `/api/*` requests to the server via Vite config.
 - Use shadcn/ui components for all UI — no raw HTML form elements or hardcoded colors
 - Use axios for all HTTP requests on the client — create an axios instance with `baseURL` and `withCredentials: true`; use `axios.isAxiosError()` for error handling
 - Use TanStack Query for all server state on the client — `useQuery` for fetching, `useMutation` for writes; update the cache via `setQueryData` on success to avoid redundant refetches
+- All error and response messages must be shown in a popup dialog box with an OK button — never use `alert()`, `confirm()`, or inline error text for API responses
