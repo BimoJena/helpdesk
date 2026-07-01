@@ -19,6 +19,17 @@ router.get("/", requireAuth, requireAdmin, async (_req, res, next) => {
   }).then((users) => res.json(users)).catch(next);
 });
 
+// GET /api/users/agents — list all agents (for assignment dropdown)
+router.get("/agents", requireAuth, async (_req, res, next) => {
+  prisma.user
+    .findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    })
+    .then((agents) => res.json(agents))
+    .catch(next);
+});
+
 // POST /api/users — create a new user
 router.post("/", requireAuth, requireAdmin, async (req, res, next) => {
   const { name, email, password } = req.body;

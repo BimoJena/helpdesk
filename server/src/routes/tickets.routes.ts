@@ -71,12 +71,32 @@ router.get("/:id", requireAuth, async (req, res, next) => {
         category: true,
         createdAt: true,
         updatedAt: true,
+        assignedTo: { select: { id: true, name: true, email: true } },
       },
     })
     .then((ticket) => {
       if (!ticket) return res.status(404).json({ error: "Ticket not found" });
       res.json(ticket);
     })
+    .catch(next);
+});
+
+// PATCH /api/tickets/:id/assign — assign ticket to an agent
+router.patch("/:id/assign", requireAuth, async (req, res, next) => {
+  const { agentId } = req.body;
+
+  if (agentId !== null) {
+    const agent = await prisma.user.findUnique({ where: { id: agentId }, select: { id: true } });
+    if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  }
+
+  prisma.ticket
+    .update({
+      where: { id: req.params.id },
+      data: { assignedToId: agentId ?? null },
+      select: { id: true, assignedTo: { select: { id: true, name: true, email: true } } },
+    })
+    .then((ticket) => res.json(ticket))
     .catch(next);
 });
 

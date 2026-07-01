@@ -1,10 +1,16 @@
 import axios from "axios";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import AppLayout from "../components/AppLayout";
 import { Skeleton } from "../components/ui/skeleton";
 import { $Enums } from "../../../server/generated/prisma";
+
+interface Agent {
+  id: string;
+  name: string;
+  email: string;
+}
 
 interface TicketDetail {
   id: string;
@@ -16,6 +22,7 @@ interface TicketDetail {
   category: $Enums.TicketCategory | null;
   createdAt: string;
   updatedAt: string;
+  assignedTo: Agent | null;
 }
 
 const api = axios.create({
@@ -38,10 +45,22 @@ const CATEGORY_LABELS: Record<$Enums.TicketCategory, string> = {
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: ticket, isLoading, isError } = useQuery<TicketDetail>({
     queryKey: ["ticket", id],
     queryFn: () => api.get<TicketDetail>(`/api/tickets/${id}`).then((r) => r.data),
+  });
+
+  const { data: agents = [] } = useQuery<Agent[]>({
+    queryKey: ["agents"],
+    queryFn: () => api.get<Agent[]>("/api/users/agents").then((r) => r.data),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (agentId: string | null) =>
+      api.patch(`/api/tickets/${id}/assign`, { agentId }).then((r) => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ticket", id] }),
   });
 
   const fmt = (date: string) =>
@@ -97,7 +116,17 @@ export default function TicketDetailPage() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <p className="text-xs text-gray-400 shrink-0">Assigned to</p>
-                  <p className="text-gray-500">—</p>
+                  <select
+                    value={ticket.assignedTo?.id ?? ""}
+                    onChange={(e) => assignMutation.mutate(e.target.value || null)}
+                    disabled={assignMutation.isPending}
+                    className="text-sm text-gray-700 bg-transparent border-none outline-none cursor-pointer"
+                  >
+                    <option value="">Unassigned</option>
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-2 px-6 py-3 gap-4">
