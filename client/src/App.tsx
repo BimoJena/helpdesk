@@ -3,6 +3,7 @@ import { authClient } from "./lib/authClient";
 import LoginPage from "./pages/LoginPage";
 import HomePage from "./pages/HomePage";
 import UsersPage from "./pages/UsersPage";
+import TicketDetailPage from "./pages/TicketDetailPage";
 import TicketsPage from "./pages/TicketsPage";
 
 function App() {
@@ -31,6 +32,10 @@ function App() {
       <Route
         path="/tickets"
         element={session ? <TicketsPage /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/tickets/:id"
+        element={session ? <TicketDetailPage /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/users"

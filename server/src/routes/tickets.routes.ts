@@ -56,4 +56,28 @@ router.get("/", requireAuth, async (req, res, next) => {
     .catch(next);
 });
 
+// GET /api/tickets/:id — get a single ticket
+router.get("/:id", requireAuth, async (req, res, next) => {
+  prisma.ticket
+    .findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        subject: true,
+        body: true,
+        senderEmail: true,
+        senderName: true,
+        status: true,
+        category: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+    .then((ticket) => {
+      if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+      res.json(ticket);
+    })
+    .catch(next);
+});
+
 export default router;

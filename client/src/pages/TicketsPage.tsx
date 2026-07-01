@@ -9,6 +9,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
+import { Link } from "react-router-dom";
 import AppLayout from "../components/AppLayout";
 import { Skeleton } from "../components/ui/skeleton";
 import { Button } from "../components/ui/button";
@@ -55,7 +56,12 @@ const columns = [
   columnHelper.accessor("subject", {
     header: "Subject",
     cell: (info) => (
-      <span className="font-medium text-gray-900">{info.getValue()}</span>
+      <Link
+        to={`/tickets/${info.row.original.id}`}
+        className="font-medium text-gray-900"
+      >
+        {info.getValue()}
+      </Link>
     ),
   }),
   columnHelper.accessor("senderEmail", {
